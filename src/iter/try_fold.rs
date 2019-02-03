@@ -148,6 +148,23 @@ where
         }
     }
 
+    #[cfg(has_try_fold)]
+    fn consume_iter<I>(self, iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>
+    {
+        let fold_op = self.fold_op;
+        let result = self.result.and_then(|acc| {
+            iter.into_iter().try_fold(acc, |acc, item| {
+                fold_op(acc, item).into_result()
+            })
+        });
+        TryFoldFolder {
+            result: result,
+            ..self
+        }
+    }
+
     fn complete(self) -> C::Result {
         let item = match self.result {
             Ok(ok) => U::from_ok(ok),
