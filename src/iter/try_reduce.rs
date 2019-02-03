@@ -116,6 +116,46 @@ where
         }
     }
 
+    #[cfg(has_try_fold)]
+    fn consume_iter<I>(self, iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>
+    {
+        let full = self.full;
+        let reduce_op = self.reduce_op;
+        let result = self
+            .result
+            .and_then(|left| {
+                let inner_result = iter.into_iter().try_fold(left, |acc, item| {
+                    let this_step = item
+                        .into_result()
+                        .and_then(|right| {
+                            reduce_op(acc, right).into_result()
+                        });
+
+                    match this_step {
+                        // break
+                        Err(_) => Err(this_step),
+                        _ if full.load(Ordering::Relaxed) => Err(this_step),
+                        // continue
+                        Ok(value) => Ok(value),
+                    }
+                });
+
+                match inner_result {
+                    Err(result) => result,
+                    Ok(value) => Ok(value)
+                }
+            });
+        if result.is_err() {
+            self.full.store(true, Ordering::Relaxed);
+        }
+        TryReduceFolder {
+            result: result,
+            ..self
+        }
+    }
+
     fn complete(self) -> T {
         match self.result {
             Ok(ok) => T::from_ok(ok),
