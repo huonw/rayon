@@ -6,6 +6,11 @@ fn main() {
     if probe("fn main() { 0i128; }") {
         println!("cargo:rustc-cfg=has_i128");
     }
+
+    let try_fold = "fn main() { let _ = std::iter::once(0).try_fold(1, |_, _| Err(2)); }";
+    if probe(try_fold) {
+        println!("cargo:rustc-cfg=has_try_fold");
+    }
 }
 
 /// Test if a code snippet can be compiled

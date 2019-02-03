@@ -175,10 +175,33 @@ pub trait Folder<Item>: Sized {
     where
         I: IntoIterator<Item = Item>,
     {
-        for item in iter {
-            self = self.consume(item);
-            if self.full() {
-                break;
+        #[cfg(has_try_fold)]
+        {
+            // if try_fold is usable with this compiler, use that to
+            // benefit from any internal iteration optimizations that
+            // `I` has
+            let result = iter.into_iter()
+                .try_fold(self, |mut self_, item| {
+                    self_ = self_.consume(item);
+                    if self_.full() {
+                        // break
+                        Err(self_)
+                    } else {
+                        Ok(self_)
+                    }
+                });
+            self = match result {
+                Ok(s) => s,
+                Err(s) => s,
+            }
+        }
+        #[cfg(not(has_try_fold))]
+        {
+            for item in iter {
+                self = self.consume(item);
+                if self.full() {
+                    break;
+                }
             }
         }
         self
